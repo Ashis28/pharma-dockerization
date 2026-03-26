@@ -1,0 +1,183 @@
+version: '3.8'
+
+services:
+
+  # ─── RabbitMQ ─────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: pharmacy-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_VM_MEMORY_HIGH_WATERMARK=0.8
+    networks:
+      - pharmacy-net
+
+  # ─── MySQL ────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: pharmacy-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: pharmacy
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - pharmacy-net
+
+  # ─── Eureka Server ────────────────────────────────────
+  eureka-server:
+    build: ./eureka-server
+    image: ashisdockerswork/eureka-server
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    depends_on:
+      - mysql
+    networks:
+      - pharmacy-net
+
+  # ─── Gateway ──────────────────────────────────────────
+  gateway-service:
+    build: ./gateway-service
+    image: ashisdockerswork/gateway-service
+    container_name: gateway-service
+    ports:
+      - "8888:8888"
+    environment:
+      - EUREKA_HOST=eureka-server
+      - JWT_SECRET=pharmacy_super_secret_key_for_hs256_min_32chars
+    depends_on:
+      - eureka-server
+    networks:
+      - pharmacy-net
+
+  # ─── Auth Service ─────────────────────────────────────
+  auth-service:
+    build: ./auth-service
+    image: ashisdockerswork/auth-service
+    container_name: auth-service
+    ports:
+      - "9091:9091"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=root
+      - EUREKA_HOST=eureka-server
+      - JWT_SECRET=pharmacy_super_secret_key_for_hs256_min_32chars
+    depends_on:
+      - mysql
+      - eureka-server
+    networks:
+      - pharmacy-net
+
+  # ─── Catalog Service ──────────────────────────────────
+  catalog-service:
+    build: ./catalog-service
+    image: ashisdockerswork/catalog-service
+    container_name: catalog-service
+    ports:
+      - "9092:9092"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=root
+      - EUREKA_HOST=eureka-server
+      - JWT_SECRET=pharmacy_super_secret_key_for_hs256_min_32chars
+    depends_on:
+      - mysql
+      - eureka-server
+    networks:
+      - pharmacy-net
+
+  # ─── Order Service ────────────────────────────────────
+  order-service:
+    build: ./order-service
+    image: ashisdockerswork/order-service
+    container_name: order-service
+    ports:
+      - "9093:9093"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=root
+      - EUREKA_HOST=eureka-server
+      - JWT_SECRET=pharmacy_super_secret_key_for_hs256_min_32chars
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+    depends_on:
+      - mysql
+      - eureka-server
+      - rabbitmq
+    networks:
+      - pharmacy-net
+
+  # ─── Admin Service ────────────────────────────────────
+  admin-service:
+    build: ./admin-service
+    image: ashisdockerswork/admin-service
+    container_name: admin-service
+    ports:
+      - "9094:9094"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=root
+      - EUREKA_HOST=eureka-server
+      - JWT_SECRET=pharmacy_super_secret_key_for_hs256_min_32chars
+    depends_on:
+      - mysql
+      - eureka-server
+    networks:
+      - pharmacy-net
+
+  # ─── Payment Service ──────────────────────────────────
+  payment-service:
+    build: ./payment-service
+    image: ashisdockerswork/payment-service
+    container_name: payment-service
+    ports:
+      - "9095:9095"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=root
+      - EUREKA_HOST=eureka-server
+      - JWT_SECRET=pharmacy_super_secret_key_for_hs256_min_32chars
+    depends_on:
+      - mysql
+      - eureka-server
+    networks:
+      - pharmacy-net
+
+  # ─── Notification Service ─────────────────────────────
+  notification-service:
+    build: ./notification-service
+    image: ashisdockerswork/notification-service
+    container_name: notification-service
+    ports:
+      - "9096:9096"
+    environment:
+      - EUREKA_HOST=eureka-server
+      - JWT_SECRET=pharmacy_super_secret_key_for_hs256_min_32chars
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+    depends_on:
+      - eureka-server
+      - rabbitmq
+    networks:
+      - pharmacy-net
+
+# ─── Volumes ────────────────────────────────────────────
+volumes:
+  mysql-data:
+
+# ─── Networks ───────────────────────────────────────────
+networks:
+  pharmacy-net:
+    driver: bridge
